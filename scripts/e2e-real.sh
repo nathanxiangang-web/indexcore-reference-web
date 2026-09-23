@@ -216,6 +216,11 @@ rm -rf "$TMP_SRC"
 wait_ready "$BASE_URL/readyz" 30 || die "IndexCore did not come back after seeding"
 ok "controlled COMPLETE fixtures seeded (removal + ambiguity)"
 
+# Deprecate the removal root so its tombstones require BOTH include_removed and
+# the deprecated-root opt-in to be reachable through Q3.
+docker exec "$CONTAINER" indexcore root deprecate --root-id "$ROOT_B" >/dev/null
+ok "removal root deprecated (lifecycle visibility must now be carried)"
+
 # ---------------------------------------------------------------------------
 say "Assert rendered pages against the real IndexCore"
 # ---------------------------------------------------------------------------
@@ -256,14 +261,18 @@ else
   bad "Q8 journal pagination off-by-one (after_seq=$NEXT_AFTER, last_seq=$LAST_SEQ)"
 fi
 
-# Removed resources: the link from /removed must keep include_removed=true.
-REMOVED_PAGE="$(curl_body "$WEB_URL/removed?root=$ROOT_B")"
-R_RES="$(printf '%s' "$REMOVED_PAGE" | grep -oE '/resources/[0-9a-fA-F-]+\?include_removed=1' | head -1 || true)"
-if [ -n "$R_RES" ]; then
-  expect_contains "$WEB_URL$R_RES" "canonical path" "removed resource detail reachable with include_removed"
+# Removed resources: the link from /removed must keep include_removed=true AND
+# the deprecated-root opt-in (ROOT_B was deprecated above).
+REMOVED_PAGE="$(curl_body "$WEB_URL/removed?root=$ROOT_B&include_deprecated_root=1")"
+R_RES="$(printf '%s' "$REMOVED_PAGE" | grep -oE '/resources/[0-9a-fA-F-]+\?[^"]*' | head -1 || true)"
+if [ -z "$R_RES" ]; then
+  bad "removed page produced no resource link"
+elif printf '%s' "$R_RES" | grep -qF "include_removed=1" && printf '%s' "$R_RES" | grep -qF "include_deprecated_root=1"; then
+  ok "removed resource link keeps include_removed + deprecated-root visibility"
 else
-  bad "removed resource link does not preserve include_removed=true"
+  bad "removed resource link dropped visibility ($R_RES)"
 fi
+expect_contains "$WEB_URL$(unescape_amp "$R_RES")" "canonical path" "removed resource detail reachable with include_removed + deprecated root"
 
 # Stale cursor: page 2 is valid on the current generation, then must be refused.
 P1="$(curl_body "$WEB_URL/roots/$ROOT_A?limit=1")"
@@ -319,6 +328,30 @@ else
   bad "deleted root resource link dropped include_deleted_root"
 fi
 expect_contains "$WEB_URL$(unescape_amp "$E_RES_LINK")" "/e-doc.txt" "deleted root resource detail keeps visibility"
+
+# ---------------------------------------------------------------------------
+say "Assert lifecycle-root navigation from /journal and the Q6 entry"
+# ---------------------------------------------------------------------------
+# /journal must carry root visibility into Q3 as well.
+J_DEP="$(curl_body "$WEB_URL/journal?root=$ROOT_D&include_deprecated_root=1")"
+expect_body_contains "$J_DEP" "resource-added" "Q8 journal readable for a deprecated root"
+J_LINK="$(printf '%s' "$J_DEP" | grep -oE '/resources/[0-9a-fA-F-]+\?[^"]*' | head -1 || true)"
+if [ -z "$J_LINK" ]; then
+  bad "journal page produced no resource link"
+elif printf '%s' "$J_LINK" | grep -qF "include_deprecated_root=1"; then
+  ok "journal resource link keeps root visibility"
+else
+  bad "journal resource link dropped include_deprecated_root ($J_LINK)"
+fi
+expect_contains "$WEB_URL$(unescape_amp "$J_LINK")" "canonical path" "journal resource detail reachable on a deprecated root"
+
+# Q6 has no lifecycle-root visibility option: the entry must be hidden, and a
+# forced ?view=active must be refused with a notice + hierarchy fallback.
+expect_body_contains "$(curl_body "$WEB_URL/roots/$ROOT_D?include_deprecated_root=1")" "unavailable for DEPRECATED/DELETED roots" "Q6 entry hidden for a deprecated root"
+expect_absent   "$WEB_URL/roots/$ROOT_D?include_deprecated_root=1" "view=active" "deprecated root page offers no Q6 link"
+expect_contains "$WEB_URL/roots/$ROOT_D?include_deprecated_root=1&view=active" "is not available for this root" "forced Q6 on a deprecated root is refused with a notice"
+expect_contains "$WEB_URL/roots/$ROOT_D?include_deprecated_root=1&view=active" "Hierarchy (Q4 list_resources)" "forced Q6 falls back to the hierarchy view"
+expect_contains "$WEB_URL/roots/$ROOT_A" "view=active" "Q6 entry is still offered for an ACTIVE root"
 
 # ---------------------------------------------------------------------------
 say "Assert IndexCore unavailable and independent restart"

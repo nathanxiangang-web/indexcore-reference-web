@@ -176,6 +176,11 @@ into index-core's test/verification side and now uses the accepted safe ingress
 all error messages; and deprecated/deleted-root plus removed-resource visibility opt-ins now survive
 directory, breadcrumb and resource-detail navigation (with an E2E regression).
 
+Round 3 Architect review close-out is included: `/removed` and `/journal` now carry the
+deprecated/deleted-root opt-in into resource detail (so Q3 does not fall back to default visibility),
+and the Active resources (Q6) entry is hidden for DEPRECATED/DELETED roots — a forced `?view=active`
+shows an explicit notice and falls back to hierarchy instead of a misleading not_found.
+
 Consumer-contract findings (authoritative: `index-core/docs/gate4/`):
 [`docs/GATE4-REFERENCE-CONSUMER-REPORT.md`](docs/GATE4-REFERENCE-CONSUMER-REPORT.md).
 

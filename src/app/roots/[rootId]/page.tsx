@@ -30,7 +30,7 @@ export default async function RootDetailPage({
   const sp = await searchParams;
   const basePath = `/roots/${encodeURIComponent(rootId)}`;
 
-  const view: View = firstParam(sp.view) === "active" ? "active" : "hierarchy";
+  const requestedView: View = firstParam(sp.view) === "active" ? "active" : "hierarchy";
   const parent = firstParam(sp.parent);
   const cursor = firstParam(sp.cursor);
   const limit = intParam(sp.limit, 50);
@@ -49,6 +49,17 @@ export default async function RootDetailPage({
     load(() => client.getRoot(rootId, readOptions)),
     load(() => client.getRootStatus(rootId, readOptions)),
   ]);
+
+  // Q6 list_active_resources has NO deprecated/deleted-root visibility option in
+  // the frozen contract, so a lifecycle root must not be browsed through it.
+  // Requesting it is answered with an explicit notice + the hierarchy view
+  // instead of a misleading not_found/empty result.
+  const legacyRoot =
+    rootResult.ok &&
+    (rootResult.value.lifecycle_state === "DEPRECATED" ||
+      rootResult.value.lifecycle_state === "DELETED");
+  const q6Blocked = requestedView === "active" && legacyRoot;
+  const view: View = q6Blocked ? "hierarchy" : requestedView;
 
   // Q4 list_resources expresses hierarchy; Q6 list_active_resources is a
   // whole-root listing and is a distinct call with distinct semantics.
@@ -120,13 +131,33 @@ export default async function RootDetailPage({
       ) : null}
 
       <p className="picker">
-        <Link href={link({ view: undefined, parent: undefined, cursor: undefined })}>
-          {view === "hierarchy" ? "• Hierarchy (Q4)" : "Hierarchy (Q4)"}
-        </Link>
-        <Link href={link({ view: "active", parent: undefined, cursor: undefined })}>
-          {view === "active" ? "• Active resources (Q6)" : "Active resources (Q6)"}
-        </Link>
+        {legacyRoot ? (
+          <span className="muted">• Hierarchy (Q4)</span>
+        ) : (
+          <Link href={link({ view: undefined, parent: undefined, cursor: undefined })}>
+            {view === "hierarchy" ? "• Hierarchy (Q4)" : "Hierarchy (Q4)"}
+          </Link>
+        )}
+        {legacyRoot ? (
+          <span className="muted">
+            Active resources (Q6) is unavailable for DEPRECATED/DELETED roots — use Hierarchy
+            (Q4) / audit views
+          </span>
+        ) : (
+          <Link href={link({ view: "active", parent: undefined, cursor: undefined })}>
+            {view === "active" ? "• Active resources (Q6)" : "Active resources (Q6)"}
+          </Link>
+        )}
       </p>
+      {q6Blocked ? (
+        <div className="alert warn" role="alert">
+          <strong>
+            Q6 <code>list_active_resources</code> is not available for this root.
+          </strong>{" "}
+          The frozen Q6 contract has no deprecated/deleted-root visibility option; showing
+          Hierarchy (Q4) instead.
+        </div>
+      ) : null}
 
       <p className="picker">
         <Link href={link({ include_removed: includeRemoved ? undefined : true })}>
@@ -140,8 +171,8 @@ export default async function RootDetailPage({
         <Link href={link({ include_deleted_root: includeDeletedRoot ? undefined : true })}>
           {includeDeletedRoot ? "Hide" : "Show"} deleted root
         </Link>
-        <Link href={`/removed?root=${encodeURIComponent(rootId)}`}>Removed view</Link>
-        <Link href={`/journal?root=${encodeURIComponent(rootId)}`}>Journal</Link>
+        <Link href={buildHref("/removed", { root: rootId, ...linkQuery })}>Removed view</Link>
+        <Link href={buildHref("/journal", { root: rootId, ...linkQuery })}>Journal</Link>
       </p>
       <p className="hint">
         Q9 get_root_status is reflected in the summary above. Root visibility is threaded

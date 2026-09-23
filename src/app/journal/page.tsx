@@ -4,7 +4,7 @@ import { RootPicker } from "@/components/controls";
 import { EmptyState, ErrorNotice } from "@/components/notices";
 import { getIndexCoreClient } from "@/lib/indexcore/server";
 import { load } from "@/lib/load";
-import { buildHref, firstParam, intParam, type SearchParams } from "@/lib/query";
+import { boolParam, buildHref, firstParam, intParam, type SearchParams } from "@/lib/query";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +17,8 @@ export default async function JournalPage({
   const root = firstParam(sp.root);
   const afterSeq = intParam(sp.after_seq, 0);
   const limit = intParam(sp.limit, 50);
+  const includeDeprecatedRoot = boolParam(sp.include_deprecated_root);
+  const includeDeletedRoot = boolParam(sp.include_deleted_root);
 
   const client = getIndexCoreClient();
   const rootsResult = await load(() =>
@@ -37,16 +39,50 @@ export default async function JournalPage({
   // silently skip the very next event).
   const hasMore = journalResult?.ok === true && journalResult.value.length >= limit;
 
+  // Root visibility must survive into Q3 resource detail: a journal entry of a
+  // resource inside a DEPRECATED/DELETED root still needs the matching opt-in.
+  const rootVisibility = {
+    include_deprecated_root: includeDeprecatedRoot ? true : undefined,
+    include_deleted_root: includeDeletedRoot ? true : undefined,
+  };
+  const linkParams = {
+    root,
+    limit,
+    include_deprecated_root: includeDeprecatedRoot ? true : undefined,
+    include_deleted_root: includeDeletedRoot ? true : undefined,
+  };
+  const resetHref = buildHref("/journal", linkParams);
+
   return (
     <>
       <h1>Journal</h1>
       <p className="note">
         Q8 <code>read_journal</code>. Ordering is per-root only (<code>event_seq</code>); there
-        is no global cross-root event order.
+        is no global cross-root event order. Root visibility below is carried into resource
+        detail.
       </p>
 
       {rootsResult.ok ? (
-        <RootPicker action="/journal" roots={rootsResult.value} selected={root} />
+        <RootPicker action="/journal" roots={rootsResult.value} selected={root}>
+          <label>
+            <input
+              type="checkbox"
+              name="include_deprecated_root"
+              value="1"
+              defaultChecked={includeDeprecatedRoot}
+            />{" "}
+            include deprecated root
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              name="include_deleted_root"
+              value="1"
+              defaultChecked={includeDeletedRoot}
+            />{" "}
+            include deleted root
+          </label>
+        </RootPicker>
       ) : (
         <ErrorNotice failure={rootsResult} />
       )}
@@ -54,7 +90,7 @@ export default async function JournalPage({
       {!root ? (
         <EmptyState>Select a root to read its journal.</EmptyState>
       ) : journalResult && !journalResult.ok ? (
-        <ErrorNotice failure={journalResult} resetHref={buildHref("/journal", { root, limit })} />
+        <ErrorNotice failure={journalResult} resetHref={resetHref} />
       ) : journalResult && journalResult.ok ? (
         journalResult.value.length === 0 ? (
           <EmptyState>No journal events after seq {afterSeq}.</EmptyState>
@@ -84,7 +120,7 @@ export default async function JournalPage({
                         <Link
                           href={buildHref(
                             `/resources/${encodeURIComponent(event.resource_id)}`,
-                            { include_removed: true },
+                            { include_removed: true, ...rootVisibility },
                           )}
                         >
                           {event.resource_id}
@@ -107,9 +143,9 @@ export default async function JournalPage({
             </table>
 
             <div className="pagination">
-              <Link href={buildHref("/journal", { root, limit })}>← Reload</Link>
+              <Link href={buildHref("/journal", linkParams)}>← Reload</Link>
               {hasMore && lastSeq !== undefined ? (
-                <Link href={buildHref("/journal", { root, after_seq: lastSeq, limit })}>
+                <Link href={buildHref("/journal", { ...linkParams, after_seq: lastSeq })}>
                   Next events →
                 </Link>
               ) : (

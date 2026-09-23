@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 import type { Resource, Root } from "@/lib/indexcore/types";
 import { buildHref, type LinkQuery } from "@/lib/query";
@@ -23,15 +24,22 @@ export function SiteNav() {
   );
 }
 
-/** A GET form that selects one root for a root-scoped page. */
+/**
+ * A GET form that selects one root for a root-scoped page.
+ *
+ * `children` render inside the same <form>, so extra inputs (e.g. root
+ * visibility opt-ins) are submitted together with the selected root.
+ */
 export function RootPicker({
   action,
   roots,
   selected,
+  children,
 }: {
   action: string;
   roots: Root[];
   selected?: string;
+  children?: ReactNode;
 }) {
   return (
     <form className="picker" method="get" action={action}>
@@ -46,6 +54,7 @@ export function RootPicker({
           ))}
         </select>
       </label>
+      {children}
       <button type="submit">Go</button>
     </form>
   );
