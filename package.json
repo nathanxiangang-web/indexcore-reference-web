@@ -2,7 +2,7 @@
   "name": "indexcore-reference-web",
   "version": "0.0.0",
   "private": true,
-  "description": "Disposable reference consumer for the IndexCore read-only /v1 HTTP contract (Gate 4).",
+  "description": "Reference Web for IndexCore server-side /v1 integration, Q1-Q9 behavior, and consumer-boundary regression.",
   "engines": {
     "node": ">=20.9.0"
   },
