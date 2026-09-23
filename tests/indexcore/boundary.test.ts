@@ -23,15 +23,19 @@ function walk(dir: string): string[] {
 }
 
 const srcFiles = walk(SRC);
-const appFiles = srcFiles.filter((file) => relative(SRC, file).startsWith("app" + "/"));
+const UI_DIRS = ["app", "components"];
+const uiFiles = srcFiles.filter((file) => {
+  const rel = relative(SRC, file);
+  return UI_DIRS.some((dir) => rel.startsWith(dir + "/"));
+});
 
 describe("consumer boundary — browser/UI code", () => {
   it("has UI files to check (guards against an accidental empty scan)", () => {
-    expect(appFiles.length).toBeGreaterThan(0);
+    expect(uiFiles.length).toBeGreaterThan(0);
   });
 
   it("never reads IndexCore configuration in UI code", () => {
-    for (const file of appFiles) {
+    for (const file of uiFiles) {
       const text = readFileSync(file, "utf8");
       expect(text, file).not.toContain("INDEXCORE_BASE_URL");
       expect(text, file).not.toContain("process.env");
@@ -39,7 +43,7 @@ describe("consumer boundary — browser/UI code", () => {
   });
 
   it("never hardcodes an IndexCore origin in UI code", () => {
-    for (const file of appFiles) {
+    for (const file of uiFiles) {
       const text = readFileSync(file, "utf8");
       expect(text, file).not.toContain("127.0.0.1:8080");
       expect(text, file).not.toMatch(/https?:\/\/[^\s"'`]*:8080/);
@@ -47,13 +51,13 @@ describe("consumer boundary — browser/UI code", () => {
   });
 
   it("never calls fetch directly from UI code", () => {
-    for (const file of appFiles) {
+    for (const file of uiFiles) {
       expect(readFileSync(file, "utf8"), file).not.toMatch(/\bfetch\s*\(/);
     }
   });
 
   it("imports the server-only factory rather than the raw client", () => {
-    for (const file of appFiles) {
+    for (const file of uiFiles) {
       expect(readFileSync(file, "utf8"), file).not.toContain("@/lib/indexcore/client");
     }
   });

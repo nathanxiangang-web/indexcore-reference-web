@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { isIndexCoreError } from "@/lib/indexcore/errors";
 import { getIndexCoreClient } from "@/lib/indexcore/server";
 import type { Root, ReadyStatus, HealthStatus } from "@/lib/indexcore/types";
@@ -132,7 +134,11 @@ export default async function HomePage() {
           <tbody>
             {summary.roots.map((root) => (
               <tr key={root.root_id}>
-                <td className="mono">{root.root_id}</td>
+                <td className="mono">
+                  <Link href={`/roots/${encodeURIComponent(root.root_id)}`}>
+                    {root.root_id}
+                  </Link>
+                </td>
                 <td>{root.lifecycle_state}</td>
                 <td>{root.current_generation}</td>
                 <td className="mono muted">{root.created_at}</td>

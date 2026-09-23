@@ -138,7 +138,25 @@ Out of scope
 
 Only a genuine IndexCore contract gap is escalated for separate Architect review.
 
+## Running against IndexCore
+
+```bash
+INDEXCORE_BASE_URL=http://127.0.0.1:8080 npm run build && npm start
+```
+
+The reference Web is deployable independently of IndexCore: when IndexCore is unavailable it
+renders an explicit "unreachable" state (no faked data) and recovers when IndexCore returns.
+
 ## Status
 
-Gate 4 Phase A (foundation: scaffold, boundary, server-side config, typed client, contract
-tests). Pages and real E2E follow in later phases.
+Gate 4 Phases A–C complete on `gate4/reference-consumer`:
+
+- **Phase A** — scaffold, boundary, server-side config, typed client, contract + boundary tests.
+- **Phase B** — `/roots`, `/roots/[rootId]`, `/resources/[resourceId]`, `/resolve`, `/removed`,
+  `/journal`, exercising Q1–Q9 with explicit ambiguity and `stale_cursor` handling.
+- **Phase C** — real IndexCore E2E (multiple roots, nested hierarchy, resource detail, path
+  ambiguity, removed/tombstone, journal, pagination, stale-cursor UX, unavailable state,
+  independent restart).
+
+Consumer-contract findings: [`docs/GATE4-REFERENCE-CONSUMER-REPORT.md`](docs/GATE4-REFERENCE-CONSUMER-REPORT.md).
+

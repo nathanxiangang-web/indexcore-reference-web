@@ -120,3 +120,80 @@ td {
 .muted {
   color: var(--muted);
 }
+.nav {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+}
+
+.nav a {
+  text-decoration: none;
+}
+
+.nav a:hover {
+  text-decoration: underline;
+}
+
+.picker {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin: 1rem 0;
+}
+
+.picker select {
+  max-width: 30rem;
+}
+
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.breadcrumbs {
+  margin: 0.5rem 0 1rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.alert.warn {
+  border-color: #b54708;
+  background: #fffaeb;
+  color: #b54708;
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.3rem 1rem;
+  margin: 0.75rem 0;
+}
+
+.kv dt {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.kv dd {
+  margin: 0;
+}
+
+pre.payload {
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--bg-soft);
+  border-radius: 4px;
+  padding: 0.5rem;
+  font-size: 0.8rem;
+  margin: 0.25rem 0 0;
+}
+
+.hint {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
