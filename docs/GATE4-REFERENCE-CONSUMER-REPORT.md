@@ -1,5 +1,7 @@
 # Gate 4 — Reference Consumer Findings
 
+> **Historical acceptance evidence.** Gate 4 is closed. For future implementation guidance, read [REFERENCE-BASELINE.md](REFERENCE-BASELINE.md), [ROUTE-CONTRACT-MAP.md](ROUTE-CONTRACT-MAP.md), and [FUTURE-DEVELOPMENT-CHECKLIST.md](FUTURE-DEVELOPMENT-CHECKLIST.md). The canonical Gate 4 report remains in the IndexCore repository.
+
 **Repository:** `nathanxiangang-web/indexcore-reference-web`
 **Upstream control issue:** `nathanxiangang-web/index-core#50`
 **Authoritative IndexCore baseline:** `nathanxiangang-web/index-core@5d315a9d16fe9a5251c60080d7e581525d7f562c`
