@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import type { Resource, Root } from "@/lib/indexcore/types";
-import { buildHref } from "@/lib/query";
+import { buildHref, type LinkQuery } from "@/lib/query";
 
 const NAV_LINKS = [
   { href: "/", label: "Status" },
@@ -79,15 +79,26 @@ export function Pagination({
   );
 }
 
-export function Breadcrumbs({ rootId, trail }: { rootId: string; trail: Resource[] }) {
+export function Breadcrumbs({
+  rootId,
+  trail,
+  linkQuery,
+}: {
+  rootId: string;
+  trail: Resource[];
+  linkQuery?: LinkQuery;
+}) {
   return (
     <nav className="breadcrumbs">
-      <Link href={`/roots/${encodeURIComponent(rootId)}`}>root</Link>
+      <Link href={buildHref(`/roots/${encodeURIComponent(rootId)}`, linkQuery)}>root</Link>
       {trail.map((resource) => (
         <span key={resource.resource_id}>
           {" / "}
           <Link
-            href={`/roots/${encodeURIComponent(rootId)}?parent=${encodeURIComponent(resource.resource_id)}`}
+            href={buildHref(`/roots/${encodeURIComponent(rootId)}`, {
+              ...linkQuery,
+              parent: resource.resource_id,
+            })}
           >
             {resource.name ?? resource.resource_id}
           </Link>

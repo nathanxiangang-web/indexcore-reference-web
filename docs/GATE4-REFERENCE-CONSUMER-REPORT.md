@@ -38,15 +38,18 @@ Pages: `/`, `/roots`, `/roots/[rootId]`, `/resources/[resourceId]`, `/resolve`, 
 | 0 CloudSite runtime/code dependency | PASS |
 | 0 application database | PASS |
 | 0 canonical mutation path | PASS |
+| 0 Go source in the consumer repository | PASS |
 | All IndexCore calls server-side | PASS |
 | Browser is never told IndexCore's internal address | PASS |
 | Closed enums validated at runtime (not cast) | PASS |
 
 Enforced automatically by `tests/indexcore/boundary.test.ts`: no UI file reads
 `INDEXCORE_BASE_URL`/`process.env`, builds an IndexCore origin, renders `client.baseUrl`, or calls
-`fetch` directly; `INDEXCORE_BASE_URL` is read in exactly one server-only module. `lifecycle_state`,
+`fetch` directly; `INDEXCORE_BASE_URL` is read in exactly one server-only module; the repository
+contains **no `.go` files** and no database/provider/rclone/CloudSite dependency. `lifecycle_state`,
 `resource_presence` and `event_type` are validated against their frozen sets in the client — an
-unknown value is rejected as `malformed_response`, not silently cast.
+unknown value is rejected as `malformed_response`, not silently cast. The controlled `COMPLETE`
+verification fixture lives in index-core's test/verification side, never here.
 
 ## 3. Q1–Q9 coverage
 
@@ -94,7 +97,7 @@ No IndexCore contract gap was found. Items we considered:
 | Interpret/derive cursors client-side | Consumer responsibility | Cursors are intentionally opaque. |
 | Root picker across many roots (search/sort) | Future product responsibility | `list_roots` returns all; a product would add UX, not a new contract. |
 | Server-side pagination beyond `limit` | Consumer responsibility | Existing generation-bound cursor is sufficient. |
-| Removed resources produced via `rclone` scans | Provider / Kernel property, not an HTTP gap | `rclone` is additive-only by frozen design (`skipped_scopes` UNKNOWN ⇒ never COMPLETE), so it cannot tombstone. Q7 was proven with a **controlled COMPLETE snapshot fixture** through the real Store/Coordinator, which the frozen contract explicitly allows. |
+| Removed resources produced via `rclone` scans | Provider / Kernel property, not an HTTP gap | `rclone` is additive-only by frozen design (`skipped_scopes` UNKNOWN ⇒ never COMPLETE), so it cannot tombstone. Q7/Q5 are proven with a **controlled COMPLETE snapshot fixture** that lives in index-core's test/verification side (`internal/runtime/e2e/gate4_reference_consumer_fixture_test.go`) and uses the accepted safe ingress (`CreateDraftSnapshot → SubmitAndAdmitSnapshot → ProcessHead`), never the retired test-only path. |
 | Authentication / multi-tenant scoping | Out of scope (Gate 4) | IndexCore is a private/loopback service in this gate. |
 | Adapter/config introspection over HTTP | Out of scope | Administration is CLI-side, read-only HTTP is consumer-facing. |
 | Write APIs | Out of scope | Gate 4 has no canonical mutation path. |
@@ -110,9 +113,9 @@ Reproduce with a real Gate-3 IndexCore stack plus an index-core checkout:
 INDEXCORE_SRC=/path/to/index-core npm run e2e:real   # see docs/E2E-RUNBOOK.md
 ```
 
-The script builds and starts the Reference Web, prepares a real `rclone` source and three roots
-through the IndexCore CLI, seeds the controlled COMPLETE fixtures, and asserts on rendered HTML.
-Last run: **`PASS=29 FAIL=0`**.
+The script builds and starts the Reference Web, prepares real `rclone` sources and roots through
+the IndexCore CLI, seeds the controlled COMPLETE fixtures through the **index-core verification
+fixture**, and asserts on rendered HTML. Last run: **`PASS=42 FAIL=0`**.
 
 Run against the real Gate-3 IndexCore runtime (`indexcore serve`, PostgreSQL 18, schema v4) with a
 real `rclone` scan where applicable, and controlled COMPLETE fixtures where the frozen Kernel
@@ -126,29 +129,36 @@ requires them.
   independent COMPLETE snapshots.
 - Root C — controlled COMPLETE fixture: `amb.txt` re-appears with different content while the old
   row is still PRESENT (missing evidence inside grace) → two PRESENT canonical rows at one path.
+- Root D — real `rclone` scan, then **DEPRECATED** (retained partition with `d-doc.txt`, `sub/deep.txt`).
+- Root E — real `rclone` scan, then **DELETED** (retained partition with `e-doc.txt`, `esub/edeep.txt`).
 
 **Observed (via the Web pages, server-side against `/v1`)**
 
 | Scenario | Command (abridged) | Result |
 | --- | --- | --- |
-| Multiple roots | `GET /roots` | A, B, C listed |
+| Multiple roots | `GET /roots` | A listed by default; D/E hidden by default, shown with opt-ins |
 | Nested hierarchy | `GET /roots/A`, `?parent=<docs>`, `?parent=<docs/deep>` | root level shows `docs/media/top.txt` (not flattened); `/docs` shows `deep/notes.txt/report.txt`; `/docs/deep` shows `nested.txt`; breadcrumb works |
 | Whole-root active (Q6) | `GET /roots/A?view=active` | `Q6 list_active_resources`; nested resources included, proving it is not Q4 |
 | Resource detail | `GET /resources/<docs>` | canonical path, is_dir, generations rendered |
 | Path ambiguity | `GET /resolve?root=C&path=/amb.txt` | `ambiguous: true`, 2 matches, no winner chosen |
-| Active / removed | `GET /removed?root=B` | `removal-target.txt` with `REMOVED` |
+| Active / removed | `GET /removed?root=B` | `removal-target.txt` with `REMOVED`; its resource link keeps `include_removed=true` |
 | Journal | `GET /journal?root=B` | `resource-added` ×4 then `resource-removed` |
 | Pagination | `GET /roots/A?limit=1` | `next_cursor` returned; page 2 rendered |
 | Journal pagination | `GET /journal?root=A&limit=3` → next link | next link uses the page's last `event_seq` (no skipped event) |
 | Stale cursor UX | page 1 cursor → advance generation (new scan) → reuse cursor | rendered “Data changed while paging · Reload from the first page” (409 `stale_cursor`, not hidden) |
-| IndexCore unavailable | stop `indexcore` container | pages render “IndexCore is unreachable”; Web itself still serves HTTP 200 |
+| Deprecated partition nav | `/roots?include_deprecated=1` → root D → `sub/` → breadcrumb → resource | visibility opt-in survives directory, breadcrumb and resource-detail links |
+| Deleted partition nav | `/roots?include_deleted=1` → root E → resource | visibility opt-in survives into resource detail |
+| IndexCore unavailable | stop `indexcore` container | pages render “IndexCore is unreachable”; Web itself still serves HTTP 200; degraded page still leaks no address |
 | Independent restart | start `indexcore` again | `/` recovers and lists roots again |
 
 **Note on removed/ambiguity fixtures:** producing Q7 and Q5 through the normal runtime requires
 Kernel-`COMPLETE` snapshots (confirmed-empty skips + strong failure visibility). `rclone` is
-deliberately not COMPLETE-capable (ADR-001), so a one-off fixture driver processed controlled
-COMPLETE snapshots through the **real** `Store` + `Coordinator`. The consumer itself still touches
-only `/v1`; no IndexCore code or contract was changed.
+deliberately not COMPLETE-capable (ADR-001). The fixture therefore lives in **index-core's
+test/verification side** and drives the accepted safe ingress
+(`CreateDraftSnapshot → SubmitAndAdmitSnapshot → Coordinator.ProcessHead`); the retired test-only
+ingress (`InsertSnapshotStub` / `MarkSnapshotSubmitted` / `ProcessSnapshot`) is not used. The
+consumer repository contains no Go source and still touches only `/v1`; no IndexCore code or
+contract was changed.
 
 ## 7. Verdict
 
@@ -170,3 +180,22 @@ All are resolved on `gate4/reference-consumer` (PR #2); no new PR was opened.
 | 5 | Real E2E was described in prose only | added `npm run e2e:real`, `scripts/e2e-real.sh`, `scripts/e2e/fixture/main.go`, `docs/E2E-RUNBOOK.md`; last run **PASS=29 FAIL=0** |
 | 6 | Closed enums were TypeScript casts, not runtime-validated | `lifecycle_state` / `resource_presence` / `event_type` are validated against their frozen sets → `malformed_response`; contract tests added |
 | 7 | The authoritative report must live in the IndexCore repository | added `index-core/docs/gate4/GATE4-REFERENCE-CONSUMER-REPORT.md`; this file is the consumer-side mirror |
+## 9. Round 2 review response (2026-09-24)
+
+Round 2 accepted the architecture, Q6, journal paging, enum validation, the address-free health
+page, the E2E script shape and Q1–Q9 client coverage. It required closing the "E2E broke the
+consumer boundary" gap plus four navigation/leak bugs. All are resolved on `gate4/reference-consumer`
+(PR #2); no new consumer PR was opened.
+
+| # | Round 2 finding | Resolution |
+| --- | --- | --- |
+| 1 | The consumer E2E fixture imported index-core internals, read a DSN, wrote Snapshots and used the retired Gate 3 test ingress → violated 0 Go / 0 PostgreSQL / 0 canonical mutation | fixture deleted from the consumer repo; the controlled COMPLETE fixture now lives in index-core `internal/runtime/e2e/gate4_reference_consumer_fixture_test.go` and uses the accepted safe ingress `CreateDraftSnapshot → SubmitAndAdmitSnapshot → Coordinator.ProcessHead`; a boundary test forbids any `.go` file in the consumer repo |
+| 2 | IndexCore-down error text still rendered the internal base URL to the browser | `IndexCoreUnavailableError` and `normalizeBaseUrl` no longer embed the address in their messages (it stays on the structured `url` field); a unit test and an E2E assertion cover both the up and degraded states |
+| 3 | Deprecated/deleted visibility was dropped by directory, breadcrumb and resource-detail navigation | `ResourceTable` and `Breadcrumbs` now thread a `linkQuery` of visibility opt-ins through every link |
+| 4 | Removed resources lost `include_removed=true` when opened from `/removed` | `/removed` and `/journal` resource links keep `include_removed=true`; resource detail preserves it further |
+| 5 | `/resolve` listed deprecated/deleted roots but its form had no matching visibility params | the form now exposes `include_deprecated_root` / `include_deleted_root`, and the match links keep them |
+| 6 | No E2E regression for retained deprecated/deleted partitions | E2E now creates a DEPRECATED root D and a DELETED root E, asserting default hiding, opt-in visibility, and navigation across directory, breadcrumb and resource detail |
+| 7 | The authoritative report had a commit but no real PR | a docs-only PR is opened against index-core `main` (this report) |
+
+Round 2 verification: `npm run typecheck`, `npm run lint`, `npm test` (38 tests) and `npm run build`
+are green; `INDEXCORE_SRC=/path/to/index-core npm run e2e:real` → **PASS=42 FAIL=0**.

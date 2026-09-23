@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import type { Resource } from "@/lib/indexcore/types";
+import { buildHref, type LinkQuery } from "@/lib/query";
 
 function formatSize(size?: number | null): string {
   if (size === undefined || size === null) return "—";
@@ -9,13 +10,22 @@ function formatSize(size?: number | null): string {
   return `${(size / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
-/** A hierarchy-aware resource table: directories link to their children. */
+/**
+ * A hierarchy-aware resource table: directories link to their children.
+ *
+ * `linkQuery` carries the current visibility opt-ins (include_removed /
+ * include_deprecated_root / include_deleted_root) so navigating into a
+ * directory or a resource detail never silently drops the partition the user
+ * was looking at.
+ */
 export function ResourceTable({
   rootId,
   resources,
+  linkQuery,
 }: {
   rootId: string;
   resources: Resource[];
+  linkQuery?: LinkQuery;
 }) {
   return (
     <table>
@@ -35,12 +45,20 @@ export function ResourceTable({
             <td>
               {resource.is_dir ? (
                 <Link
-                  href={`/roots/${encodeURIComponent(rootId)}?parent=${encodeURIComponent(resource.resource_id)}`}
+                  href={buildHref(`/roots/${encodeURIComponent(rootId)}`, {
+                    ...linkQuery,
+                    parent: resource.resource_id,
+                  })}
                 >
                   {resource.name ?? "(unnamed)"}/
                 </Link>
               ) : (
-                <Link href={`/resources/${encodeURIComponent(resource.resource_id)}`}>
+                <Link
+                  href={buildHref(
+                    `/resources/${encodeURIComponent(resource.resource_id)}`,
+                    linkQuery,
+                  )}
+                >
                   {resource.name ?? "(unnamed)"}
                 </Link>
               )}

@@ -146,7 +146,13 @@ INDEXCORE_BASE_URL=http://127.0.0.1:8080 npm run build && npm start
 ```
 
 The reference Web is deployable independently of IndexCore: when IndexCore is unavailable it
-renders an explicit "unreachable" state (no faked data) and recovers when IndexCore returns.
+renders an explicit "unreachable" state (no faked data) and recovers when IndexCore returns. It
+never renders IndexCore's internal address.
+
+Real E2E (`npm run e2e:real`) needs an index-core checkout via `INDEXCORE_SRC`. The controlled
+`COMPLETE` snapshot fixture used for removed/ambiguity lives in index-core's test/verification side
+(`internal/runtime/e2e/`), not here — this repository contains **no Go source and no database
+access**. See [docs/E2E-RUNBOOK.md](docs/E2E-RUNBOOK.md).
 
 ## Status
 
@@ -163,6 +169,12 @@ Round 1 Architect review close-out (7 points: Q6 actually called by a page, jour
 off-by-one, root visibility threaded through Q4/breadcrumbs, internal address not leaked to the
 browser, reproducible real E2E, closed enums runtime-validated, authoritative report in index-core)
 is included.
+
+Round 2 Architect review close-out is included: the E2E fixture was moved out of this repository
+into index-core's test/verification side and now uses the accepted safe ingress
+(`CreateDraftSnapshot → SubmitAndAdmitSnapshot → ProcessHead`); the internal address is removed from
+all error messages; and deprecated/deleted-root plus removed-resource visibility opt-ins now survive
+directory, breadcrumb and resource-detail navigation (with an E2E regression).
 
 Consumer-contract findings (authoritative: `index-core/docs/gate4/`):
 [`docs/GATE4-REFERENCE-CONSUMER-REPORT.md`](docs/GATE4-REFERENCE-CONSUMER-REPORT.md).

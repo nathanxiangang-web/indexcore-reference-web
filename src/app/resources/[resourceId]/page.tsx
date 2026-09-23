@@ -43,6 +43,12 @@ export default async function ResourceDetailPage({
       ...overrides,
     });
 
+  const linkQuery = {
+    include_removed: includeRemoved ? true : undefined,
+    include_deprecated_root: includeDeprecatedRoot ? true : undefined,
+    include_deleted_root: includeDeletedRoot ? true : undefined,
+  };
+
   return (
     <>
       <h1>Resource</h1>
@@ -93,7 +99,12 @@ export default async function ResourceDetailPage({
             <dd className="mono">{result.value.last_confirmed_generation}</dd>
             <dt>root</dt>
             <dd className="mono">
-              <Link href={`/roots/${encodeURIComponent(result.value.root_id)}`}>
+              <Link
+                href={buildHref(`/roots/${encodeURIComponent(result.value.root_id)}`, {
+                  include_deprecated_root: includeDeprecatedRoot ? true : undefined,
+                  include_deleted_root: includeDeletedRoot ? true : undefined,
+                })}
+              >
                 {result.value.root_id}
               </Link>
             </dd>
@@ -101,7 +112,10 @@ export default async function ResourceDetailPage({
             <dd className="mono">
               {result.value.parent_resource_id ? (
                 <Link
-                  href={`/resources/${encodeURIComponent(result.value.parent_resource_id)}`}
+                  href={buildHref(
+                    `/resources/${encodeURIComponent(result.value.parent_resource_id)}`,
+                    linkQuery,
+                  )}
                 >
                   {result.value.parent_resource_id}
                 </Link>

@@ -81,7 +81,12 @@ export default async function JournalPage({
                     <td>{event.event_type}</td>
                     <td className="mono">
                       {event.resource_id ? (
-                        <Link href={`/resources/${encodeURIComponent(event.resource_id)}`}>
+                        <Link
+                          href={buildHref(
+                            `/resources/${encodeURIComponent(event.resource_id)}`,
+                            { include_removed: true },
+                          )}
+                        >
                           {event.resource_id}
                         </Link>
                       ) : (

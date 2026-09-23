@@ -88,6 +88,13 @@ export default async function RootDetailPage({
     buildHref(basePath, { ...params0, ...overrides });
   const resetHref = link({ cursor: undefined });
 
+  // Visibility opt-ins that must survive links into directories / resource detail.
+  const linkQuery = {
+    include_removed: includeRemoved ? true : undefined,
+    include_deprecated_root: includeDeprecatedRoot ? true : undefined,
+    include_deleted_root: includeDeletedRoot ? true : undefined,
+  };
+
   return (
     <>
       <h1>Root</h1>
@@ -151,7 +158,7 @@ export default async function RootDetailPage({
       ) : (
         <>
           <h2>Hierarchy (Q4 list_resources)</h2>
-          <Breadcrumbs rootId={rootId} trail={trail} />
+          <Breadcrumbs rootId={rootId} trail={trail} linkQuery={linkQuery} />
           {parent ? (
             <p className="hint">
               Showing children of <span className="mono">{parent}</span> ·{" "}
@@ -172,7 +179,7 @@ export default async function RootDetailPage({
           {view === "active" ? "No active resources in this root." : "No child resources here."}
         </EmptyState>
       ) : (
-        <ResourceTable rootId={rootId} resources={listResult.value.items} />
+        <ResourceTable rootId={rootId} resources={listResult.value.items} linkQuery={linkQuery} />
       )}
 
       {listResult.ok ? (

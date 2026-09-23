@@ -131,4 +131,21 @@ describe("consumer boundary — no forbidden coupling", () => {
     const envExample = readFileSync(join(ROOT, ".env.example"), "utf8");
     expect(envExample).not.toMatch(/DATABASE_URL|PGHOST|POSTGRES|REDIS/i);
   });
+
+  it("contains no Go source (zero IndexCore Go / canonical-mutation coupling)", () => {
+    // The controlled COMPLETE verification fixture lives in index-core's
+    // test/verification side, never in this consumer repository.
+    const goFiles: string[] = [];
+    const skip = new Set(["node_modules", ".next", ".git", "coverage", "out"]);
+    const walkRepo = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (skip.has(entry.name)) continue;
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) walkRepo(full);
+        else if (entry.name.endsWith(".go")) goFiles.push(relative(ROOT, full));
+      }
+    };
+    walkRepo(ROOT);
+    expect(goFiles).toEqual([]);
+  });
 });

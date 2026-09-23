@@ -49,7 +49,11 @@ export default async function RemovedPage({
         pageResult.value.items.length === 0 ? (
           <EmptyState>No removed resources in this root.</EmptyState>
         ) : (
-          <ResourceTable rootId={root} resources={pageResult.value.items} />
+          <ResourceTable
+            rootId={root}
+            resources={pageResult.value.items}
+            linkQuery={{ include_removed: true }}
+          />
         )
       ) : null}
 

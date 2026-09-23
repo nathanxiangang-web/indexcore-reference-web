@@ -104,6 +104,23 @@ describe("IndexCore client — transport errors", () => {
     expect(error).toMatchObject({ kind: "unavailable" });
   });
 
+  it("never embeds the IndexCore base URL in an error message (no browser leak)", async () => {
+    const unavailable = await captureError(() =>
+      make(failingFetch(new TypeError("fetch failed"))).health(),
+    );
+    expect(String((unavailable as Error).message)).not.toContain(BASE);
+
+    const misconfigured = (() => {
+      try {
+        normalizeBaseUrl("not a url");
+      } catch (error) {
+        return error as Error;
+      }
+      throw new Error("expected normalizeBaseUrl to reject");
+    })();
+    expect(String(misconfigured.message)).not.toContain("not a url");
+  });
+
   it("maps a request deadline to timeout", async () => {
     const error = await captureError(() => make(abortingFetch(), 5).health());
 

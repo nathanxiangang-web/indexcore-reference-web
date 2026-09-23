@@ -64,6 +64,24 @@ export default async function ResolvePage({
           <input type="checkbox" name="include_removed" value="1" defaultChecked={includeRemoved} />{" "}
           include removed
         </label>
+        <label>
+          <input
+            type="checkbox"
+            name="include_deprecated_root"
+            value="1"
+            defaultChecked={includeDeprecatedRoot}
+          />{" "}
+          include deprecated root
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            name="include_deleted_root"
+            value="1"
+            defaultChecked={includeDeletedRoot}
+          />{" "}
+          include deleted root
+        </label>
         <button type="submit">Resolve</button>
       </form>
 
@@ -84,7 +102,15 @@ export default async function ResolvePage({
           {resolution.value.matches.length === 0 ? (
             <EmptyState>No resource matches this path.</EmptyState>
           ) : (
-            <ResourceTable rootId={root} resources={resolution.value.matches} />
+            <ResourceTable
+              rootId={root}
+              resources={resolution.value.matches}
+              linkQuery={{
+                include_removed: includeRemoved ? true : undefined,
+                include_deprecated_root: includeDeprecatedRoot ? true : undefined,
+                include_deleted_root: includeDeletedRoot ? true : undefined,
+              }}
+            />
           )}
         </>
       ) : null}

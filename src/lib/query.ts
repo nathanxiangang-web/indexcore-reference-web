@@ -1,5 +1,11 @@
 export type ParamValue = string | number | boolean | undefined | null;
 
+/**
+ * Visibility opt-ins (include_removed / include_deprecated_root /
+ * include_deleted_root) that must survive navigation between pages.
+ */
+export type LinkQuery = Record<string, string | number | boolean | undefined>;
+
 /** Builds a URL for one of this Web app's own routes (never an IndexCore URL). */
 export function buildHref(path: string, params: Record<string, ParamValue> = {}): string {
   const search = new URLSearchParams();

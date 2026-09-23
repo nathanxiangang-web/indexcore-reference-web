@@ -108,7 +108,9 @@ export function createIndexCoreClient(options: IndexCoreClientOptions): IndexCor
           { url, timeoutMs },
         );
       }
-      throw new IndexCoreUnavailableError(`IndexCore is unreachable at ${baseUrl}`, {
+      // The internal base URL is deliberately NOT embedded in the message: the
+      // URL stays on the structured `url` field (never rendered to the browser).
+      throw new IndexCoreUnavailableError("IndexCore is unreachable", {
         url,
         cause,
       });
@@ -212,7 +214,7 @@ export function normalizeBaseUrl(input: string): string {
   try {
     parsed = new URL(trimmed);
   } catch {
-    throw new IndexCoreUnavailableError(`IndexCore base URL is not a valid URL: ${input}`);
+    throw new IndexCoreUnavailableError("IndexCore base URL is not a valid URL");
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new IndexCoreUnavailableError(
