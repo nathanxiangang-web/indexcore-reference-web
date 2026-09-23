@@ -5,21 +5,30 @@
 // frozen Query Contract emits. The consumer maps them into whatever shape the UI
 // wants; it never treats them as shared internal models.
 
+// The three closed enums are declared as runtime arrays (single source of truth)
+// so the client can actually validate them instead of merely casting. A value
+// outside the frozen set is a contract violation and must fail as
+// `malformed_response`.
+
 /** Root lifecycle state (IndexCore doc A T1). */
-export type RootLifecycleState = "NEW" | "ACTIVE" | "DEPRECATED" | "DELETED";
+export const ROOT_LIFECYCLE_STATES = ["NEW", "ACTIVE", "DEPRECATED", "DELETED"] as const;
+export type RootLifecycleState = (typeof ROOT_LIFECYCLE_STATES)[number];
 
 /** The only consumer-visible presence signal (IndexCore doc C V1/V2). */
-export type ResourcePresence = "PRESENT" | "REMOVED";
+export const RESOURCE_PRESENCES = ["PRESENT", "REMOVED"] as const;
+export type ResourcePresence = (typeof RESOURCE_PRESENCES)[number];
 
 /** The closed set of seven canonical journal event types (IndexCore doc D U3). */
-export type EventType =
-  | "resource-added"
-  | "resource-updated"
-  | "resource-renamed"
-  | "resource-moved"
-  | "resource-removed"
-  | "root-deprecated"
-  | "root-deleted";
+export const EVENT_TYPES = [
+  "resource-added",
+  "resource-updated",
+  "resource-renamed",
+  "resource-moved",
+  "resource-removed",
+  "root-deprecated",
+  "root-deleted",
+] as const;
+export type EventType = (typeof EVENT_TYPES)[number];
 
 /** Q2/Q1 — one root as exposed by `GET /v1/roots` and `GET /v1/roots/{id}`. */
 export interface Root {

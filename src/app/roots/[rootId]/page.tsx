@@ -17,6 +17,8 @@ import {
 
 export const dynamic = "force-dynamic";
 
+type View = "hierarchy" | "active";
+
 export default async function RootDetailPage({
   params,
   searchParams,
@@ -28,6 +30,7 @@ export default async function RootDetailPage({
   const sp = await searchParams;
   const basePath = `/roots/${encodeURIComponent(rootId)}`;
 
+  const view: View = firstParam(sp.view) === "active" ? "active" : "hierarchy";
   const parent = firstParam(sp.parent);
   const cursor = firstParam(sp.cursor);
   const limit = intParam(sp.limit, 50);
@@ -42,28 +45,42 @@ export default async function RootDetailPage({
   };
 
   const client = getIndexCoreClient();
-  const [rootResult, statusResult, pageResult] = await Promise.all([
+  const [rootResult, statusResult] = await Promise.all([
     load(() => client.getRoot(rootId, readOptions)),
     load(() => client.getRootStatus(rootId, readOptions)),
-    load(() =>
-      client.listResources(rootId, {
-        parent_id: parent,
-        cursor,
-        limit,
-        include_removed: includeRemoved,
-      }),
-    ),
   ]);
 
-  // Bounded walk up the parent chain for breadcrumbs (Q3 get_resource).
+  // Q4 list_resources expresses hierarchy; Q6 list_active_resources is a
+  // whole-root listing and is a distinct call with distinct semantics.
+  const listResult =
+    view === "active"
+      ? await load(() => client.listActiveResources(rootId, { cursor, limit }))
+      : await load(() =>
+          client.listResources(rootId, {
+            parent_id: parent,
+            cursor,
+            limit,
+            include_removed: includeRemoved,
+            include_deprecated_root: includeDeprecatedRoot,
+            include_deleted_root: includeDeletedRoot,
+          }),
+        );
+
+  // Bounded walk up the parent chain for breadcrumbs (Q3 get_resource). Root
+  // visibility opt-ins are threaded through so a deprecated/deleted root stays
+  // navigable end to end.
   const trail: Resource[] = [];
-  let ancestor = parent;
-  for (let depth = 0; ancestor && depth < 32; depth += 1) {
-    const id: string = ancestor;
-    const found = await load(() => client.getResource(id, { include_removed: true }));
-    if (!found.ok) break;
-    trail.unshift(found.value);
-    ancestor = found.value.parent_resource_id ?? undefined;
+  if (view === "hierarchy") {
+    let ancestor = parent;
+    for (let depth = 0; ancestor && depth < 32; depth += 1) {
+      const id: string = ancestor;
+      const found = await load(() =>
+        client.getResource(id, { ...readOptions, include_removed: true }),
+      );
+      if (!found.ok) break;
+      trail.unshift(found.value);
+      ancestor = found.value.parent_resource_id ?? undefined;
+    }
   }
 
   const params0 = paramMap(sp);
@@ -96,6 +113,15 @@ export default async function RootDetailPage({
       ) : null}
 
       <p className="picker">
+        <Link href={link({ view: undefined, parent: undefined, cursor: undefined })}>
+          {view === "hierarchy" ? "• Hierarchy (Q4)" : "Hierarchy (Q4)"}
+        </Link>
+        <Link href={link({ view: "active", parent: undefined, cursor: undefined })}>
+          {view === "active" ? "• Active resources (Q6)" : "Active resources (Q6)"}
+        </Link>
+      </p>
+
+      <p className="picker">
         <Link href={link({ include_removed: includeRemoved ? undefined : true })}>
           {includeRemoved ? "Hide" : "Show"} removed resources
         </Link>
@@ -110,32 +136,50 @@ export default async function RootDetailPage({
         <Link href={`/removed?root=${encodeURIComponent(rootId)}`}>Removed view</Link>
         <Link href={`/journal?root=${encodeURIComponent(rootId)}`}>Journal</Link>
       </p>
-      <p className="hint">Q9 get_root_status is reflected in the summary above.</p>
+      <p className="hint">
+        Q9 get_root_status is reflected in the summary above. Root visibility is threaded
+        through Q4 and breadcrumbs.
+      </p>
 
-      <h2>Hierarchy (Q4 list_resources)</h2>
-      <Breadcrumbs rootId={rootId} trail={trail} />
-      {parent ? (
-        <p className="hint">
-          Showing children of <span className="mono">{parent}</span> ·{" "}
-          <Link href={resetHref}>back to root level</Link>
-        </p>
+      {view === "active" ? (
+        <>
+          <h2>Active resources (Q6 list_active_resources)</h2>
+          <p className="hint">
+            Whole-root active listing (not filtered by parent), generation-bound pagination.
+          </p>
+        </>
       ) : (
-        <p className="hint">Showing root-level children. Directories link to their children.</p>
+        <>
+          <h2>Hierarchy (Q4 list_resources)</h2>
+          <Breadcrumbs rootId={rootId} trail={trail} />
+          {parent ? (
+            <p className="hint">
+              Showing children of <span className="mono">{parent}</span> ·{" "}
+              <Link href={resetHref}>back to root level</Link>
+            </p>
+          ) : (
+            <p className="hint">
+              Showing root-level children. Directories link to their children.
+            </p>
+          )}
+        </>
       )}
 
-      {!pageResult.ok ? (
-        <ErrorNotice failure={pageResult} resetHref={resetHref} />
-      ) : pageResult.value.items.length === 0 ? (
-        <EmptyState>No child resources here.</EmptyState>
+      {!listResult.ok ? (
+        <ErrorNotice failure={listResult} resetHref={resetHref} />
+      ) : listResult.value.items.length === 0 ? (
+        <EmptyState>
+          {view === "active" ? "No active resources in this root." : "No child resources here."}
+        </EmptyState>
       ) : (
-        <ResourceTable rootId={rootId} resources={pageResult.value.items} />
+        <ResourceTable rootId={rootId} resources={listResult.value.items} />
       )}
 
-      {pageResult.ok ? (
+      {listResult.ok ? (
         <Pagination
           basePath={basePath}
           params={params0}
-          nextCursor={pageResult.value.next_cursor}
+          nextCursor={listResult.value.next_cursor}
           hasCursor={Boolean(cursor)}
         />
       ) : null}

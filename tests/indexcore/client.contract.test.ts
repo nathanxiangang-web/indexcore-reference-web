@@ -277,6 +277,47 @@ describe("IndexCore client — happy path / contract shape", () => {
   });
 });
 
+describe("IndexCore client — closed-enum runtime validation", () => {
+  it("rejects an unknown lifecycle_state as malformed_response", async () => {
+    const fetchImpl = scriptedFetch([
+      jsonResponse(200, { items: [{ ...ROOT, lifecycle_state: "BROKEN" }] }),
+    ]);
+    const error = await captureError(() => make(fetchImpl).listRoots());
+
+    expect(isMalformedResponse(error)).toBe(true);
+    expect(error).toMatchObject({ kind: "malformed_response" });
+  });
+
+  it("rejects an unknown resource_presence as malformed_response", async () => {
+    const fetchImpl = scriptedFetch([
+      jsonResponse(200, { ...RESOURCE, resource_presence: "BROKEN" }),
+    ]);
+    const error = await captureError(() => make(fetchImpl).getResource("res-1"));
+
+    expect(isMalformedResponse(error)).toBe(true);
+  });
+
+  it("rejects an unknown event_type as malformed_response", async () => {
+    const fetchImpl = scriptedFetch([
+      jsonResponse(200, {
+        items: [
+          {
+            event_seq: 1,
+            generation_number: 1,
+            intra_generation_seq: 1,
+            event_type: "not-a-frozen-event",
+            resource_id: "res-1",
+            committed_at: "2026-09-24T00:00:00Z",
+          },
+        ],
+      }),
+    ]);
+    const error = await captureError(() => make(fetchImpl).readJournal("r-1"));
+
+    expect(isMalformedResponse(error)).toBe(true);
+  });
+});
+
 describe("IndexCore client — URL construction", () => {
   it("normalizes trailing slashes and rejects unusable base URLs", () => {
     expect(normalizeBaseUrl("http://127.0.0.1:8080/")).toBe("http://127.0.0.1:8080");

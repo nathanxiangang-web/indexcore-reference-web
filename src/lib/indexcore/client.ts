@@ -16,6 +16,7 @@ import {
   IndexCoreUnavailableError,
   errorFromResponse,
 } from "./errors";
+import { EVENT_TYPES, RESOURCE_PRESENCES, ROOT_LIFECYCLE_STATES } from "./types";
 import type {
   HealthStatus,
   JournalEvent,
@@ -306,6 +307,24 @@ function requireString(obj: Record<string, unknown>, key: string, url: string): 
   return value;
 }
 
+// Closed-enum validation: a value outside the frozen set is a contract
+// violation, not something the consumer should silently accept.
+function requireEnum<T extends string>(
+  obj: Record<string, unknown>,
+  key: string,
+  allowed: readonly T[],
+  url: string,
+): T {
+  const value = requireString(obj, key, url);
+  if (!(allowed as readonly string[]).includes(value)) {
+    throw malformed(
+      `expected "${key}" to be one of [${allowed.join(", ")}], got ${JSON.stringify(value)}`,
+      url,
+    );
+  }
+  return value as T;
+}
+
 function requireNumber(obj: Record<string, unknown>, key: string, url: string): number {
   const value = obj[key];
   if (typeof value !== "number" || Number.isNaN(value)) {
@@ -358,7 +377,7 @@ function toReady(body: unknown, url: string): ReadyStatus {
 function toRoot(obj: Record<string, unknown>, url: string): Root {
   return {
     root_id: requireString(obj, "root_id", url),
-    lifecycle_state: requireString(obj, "lifecycle_state", url) as Root["lifecycle_state"],
+    lifecycle_state: requireEnum(obj, "lifecycle_state", ROOT_LIFECYCLE_STATES, url),
     current_generation: requireNumber(obj, "current_generation", url),
     created_at: requireString(obj, "created_at", url),
   };
@@ -374,7 +393,7 @@ function toRootList(body: unknown, url: string): Root[] {
 function toRootStatus(obj: Record<string, unknown>, url: string): RootStatus {
   const out: RootStatus = {
     root_id: requireString(obj, "root_id", url),
-    lifecycle_state: requireString(obj, "lifecycle_state", url) as RootStatus["lifecycle_state"],
+    lifecycle_state: requireEnum(obj, "lifecycle_state", ROOT_LIFECYCLE_STATES, url),
     current_generation: requireNumber(obj, "current_generation", url),
   };
   const last = optNumber(obj, "last_applied_admission_seq", url);
@@ -394,7 +413,7 @@ function toResource(obj: Record<string, unknown>, url: string): Resource {
     mtime: optString(obj, "mtime", url),
     content_hash: optString(obj, "content_hash", url),
     content_type: optString(obj, "content_type", url),
-    resource_presence: requireString(obj, "resource_presence", url) as Resource["resource_presence"],
+    resource_presence: requireEnum(obj, "resource_presence", RESOURCE_PRESENCES, url),
     introduced_at_generation: requireNumber(obj, "introduced_at_generation", url),
     last_confirmed_generation: requireNumber(obj, "last_confirmed_generation", url),
   };
@@ -429,7 +448,7 @@ function toJournalList(body: unknown, url: string): JournalEvent[] {
       event_seq: requireNumber(row, "event_seq", url),
       generation_number: requireNumber(row, "generation_number", url),
       intra_generation_seq: requireNumber(row, "intra_generation_seq", url),
-      event_type: requireString(row, "event_type", url) as JournalEvent["event_type"],
+      event_type: requireEnum(row, "event_type", EVENT_TYPES, url),
       resource_id: optString(row, "resource_id", url),
       payload: optString(row, "payload", url) ?? undefined,
       committed_at: requireString(row, "committed_at", url),

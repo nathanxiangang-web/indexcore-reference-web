@@ -32,6 +32,11 @@ export default async function JournalPage({
       ? journalResult.value[journalResult.value.length - 1].event_seq
       : undefined;
 
+  // IndexCore's read_journal selects `event_seq > after_seq`, so the next page
+  // starts at the LAST event_seq of this page — never lastSeq + 1 (which would
+  // silently skip the very next event).
+  const hasMore = journalResult?.ok === true && journalResult.value.length >= limit;
+
   return (
     <>
       <h1>Journal</h1>
@@ -98,10 +103,8 @@ export default async function JournalPage({
 
             <div className="pagination">
               <Link href={buildHref("/journal", { root, limit })}>← Reload</Link>
-              {lastSeq !== undefined ? (
-                <Link
-                  href={buildHref("/journal", { root, after_seq: lastSeq + 1, limit })}
-                >
+              {hasMore && lastSeq !== undefined ? (
+                <Link href={buildHref("/journal", { root, after_seq: lastSeq, limit })}>
                   Next events →
                 </Link>
               ) : (

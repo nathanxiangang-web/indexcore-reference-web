@@ -82,6 +82,7 @@ Quality gates:
 npm run typecheck   # tsc --noEmit
 npm run lint        # eslint
 npm test            # vitest contract + boundary tests
+npm run e2e:real    # real IndexCore E2E (requires INDEXCORE_SRC; see docs/E2E-RUNBOOK.md)
 ```
 
 ## Client boundary
@@ -156,7 +157,13 @@ Gate 4 Phases A–C complete on `gate4/reference-consumer`:
   `/journal`, exercising Q1–Q9 with explicit ambiguity and `stale_cursor` handling.
 - **Phase C** — real IndexCore E2E (multiple roots, nested hierarchy, resource detail, path
   ambiguity, removed/tombstone, journal, pagination, stale-cursor UX, unavailable state,
-  independent restart).
+  independent restart), reproducible via `npm run e2e:real`.
 
-Consumer-contract findings: [`docs/GATE4-REFERENCE-CONSUMER-REPORT.md`](docs/GATE4-REFERENCE-CONSUMER-REPORT.md).
+Round 1 Architect review close-out (7 points: Q6 actually called by a page, journal pagination
+off-by-one, root visibility threaded through Q4/breadcrumbs, internal address not leaked to the
+browser, reproducible real E2E, closed enums runtime-validated, authoritative report in index-core)
+is included.
+
+Consumer-contract findings (authoritative: `index-core/docs/gate4/`):
+[`docs/GATE4-REFERENCE-CONSUMER-REPORT.md`](docs/GATE4-REFERENCE-CONSUMER-REPORT.md).
 

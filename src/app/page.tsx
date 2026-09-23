@@ -15,7 +15,7 @@ interface Failure {
 }
 
 interface Summary {
-  baseUrl: string;
+
   health?: HealthStatus;
   ready?: ReadyStatus;
   roots?: Root[];
@@ -36,7 +36,7 @@ async function capture(summary: Summary, label: string, run: () => Promise<void>
 
 async function loadSummary(): Promise<Summary> {
   const client = getIndexCoreClient();
-  const summary: Summary = { baseUrl: client.baseUrl, failures: [] };
+  const summary: Summary = { failures: [] };
 
   await capture(summary, "GET /healthz", async () => {
     summary.health = await client.health();
@@ -64,11 +64,8 @@ export default async function HomePage() {
       <h1>Runtime status</h1>
       <p className="note">
         Read-only consumer of the IndexCore <code>/v1</code> Query Contract. All requests are
-        issued server-side from this Next.js process; the browser never talks to IndexCore.
-      </p>
-
-      <p className="mono">
-        IndexCore base URL: <code>{summary.baseUrl}</code>
+        issued server-side from this Next.js process; the browser never talks to IndexCore and
+        is never told IndexCore&apos;s internal address.
       </p>
 
       {degraded ? (

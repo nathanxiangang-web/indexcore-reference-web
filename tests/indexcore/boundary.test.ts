@@ -61,6 +61,14 @@ describe("consumer boundary — browser/UI code", () => {
       expect(readFileSync(file, "utf8"), file).not.toContain("@/lib/indexcore/client");
     }
   });
+
+  it("never renders the internal IndexCore base URL into UI code", () => {
+    // `client.baseUrl` is an internal transport detail. Rendering it would leak
+    // IndexCore's private network address to the browser.
+    for (const file of uiFiles) {
+      expect(readFileSync(file, "utf8"), file).not.toMatch(/\.baseUrl\b/);
+    }
+  });
 });
 
 describe("consumer boundary — single client boundary", () => {
