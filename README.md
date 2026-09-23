@@ -11,7 +11,8 @@ It demonstrates how to build useful resource pages using only the public read-on
 Accepted Gate 4 implementation baseline:
 
 `8f7062216dc9924f64d9ae0367e504c279704857`
-![Uploading indexcore_白话版架构接口图.png…]()
+<img width="1920" height="1080" alt="indexcore_白话版架构接口图" src="https://github.com/user-attachments/assets/9e5b80e1-dfee-4162-a8a7-e4329a78040c" />
+
 
 ## Use this repository for
 
