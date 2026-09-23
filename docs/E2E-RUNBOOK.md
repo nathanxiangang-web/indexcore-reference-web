@@ -1,5 +1,7 @@
 # Real IndexCore E2E runbook
 
+> **Reference regression runbook.** This was the Gate 4 acceptance path and is preserved for future comparison/regression work. Ordinary product development does not need to reproduce this entire fixture on every change. Start with [REFERENCE-BASELINE.md](REFERENCE-BASELINE.md) and [FUTURE-DEVELOPMENT-CHECKLIST.md](FUTURE-DEVELOPMENT-CHECKLIST.md).
+
 This is the reproducible entry point for Gate 4 Phase C. It exercises the Reference Web
 end to end against a **real** IndexCore runtime:
 
