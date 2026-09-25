@@ -1,12 +1,12 @@
 # indexcore-reference-web
 
-**Reference implementation for consuming IndexCore from a clean Web application.**
+**Test/reference Web for validating IndexCore from a clean, independent Web application.**
 
 This repository was created for Gate 4 and is now kept as a **long-term comparison baseline** for future IndexCore-consuming products.
 
 It demonstrates how to build useful resource pages using only the public read-only IndexCore HTTP contract, without depending on IndexCore internals, IndexCore PostgreSQL, AList/OpenList internals, rclone, or CloudSite code.
 
-> **Status:** Gate 4 CLOSED / accepted. Keep this repository small and easy to inspect. Use it as a boundary and behavior reference, not as the automatic production starter kit.
+> **Status:** Gate 4 CLOSED / accepted. This repository is a **test Web / validation consumer**, not a production Web, product frontend, or future UI starter kit. Keep it small and easy to inspect; use it to verify IndexCore boundaries and behavior.
 
 Accepted Gate 4 implementation baseline:
 
