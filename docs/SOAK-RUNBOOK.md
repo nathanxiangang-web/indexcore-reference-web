@@ -46,7 +46,7 @@ The observer accepts only **public test coordination values**:
 
 - Reference Web URL;
 - active root id;
-- expected resource name / path;
+- expected resource name;
 - scenario name (normal / degraded);
 - visible timeout;
 - a state-file path used as the expected-window marker;
@@ -55,6 +55,18 @@ The observer accepts only **public test coordination values**:
 
 It must **never** be given a DB DSN, Hint token, provider secret,
 provider-control credential, or IndexCore internal package/state.
+
+## Judgment is split in two
+
+The observer distinguishes:
+
+1. **Generic page health / contract judgment** — applies to every sampled route
+   (`/`, `/roots`, `/roots/<root>`, `/roots/<root>?view=active`,
+   `/journal?root=<root>`). It never requires the expected resource; a resource
+   name must not be required to appear on home, `/roots`, or Journal.
+2. **Mutation-visibility judgment** — `--wait-visible` (and `--check-html` with
+   `--expect-resource`) requires the resource on a healthy active view. This is
+   the authoritative mutation→visibility check.
 
 ## Modes
 
@@ -79,15 +91,26 @@ Samples, on every interval:
  /journal?root=<active-root>
 ```
 
+HTTP status contract:
+
+- **normal window**: every sampled route must answer **2xx** (3xx is not
+  accepted);
+- **degraded window**: every sampled route must answer **exactly 200**.
+
 Fails (exit non-zero) on:
 
-- unexpected Reference Web 5xx (or any non-2xx/3xx response) on a sampled route;
-- rendered contract-malformed state, i.e. a degraded/unreachable state while the
-  expected window is `normal`;
+- a status outside the window contract above;
 - a private IndexCore origin leaked into the rendered HTML;
-- a missing expected degraded marker while the expected window is `degraded`;
-- a missing expected resource in a normal window when `--expect-resource` is set
-  for a single-shot wait (see below).
+- **normal window**: a degraded/unreachable render, any generic production error
+  notice (`IndexCore request failed`), or a contract failure kind
+  (`malformed_response`, `internal_error`, `unexpected_status`,
+  `invalid_request`);
+- **degraded window**: a contract failure kind. Accepted availability failures
+  (`unreachable` / `timeout` / controlled `not_ready`) are **not** failures.
+
+In watch mode `--expect-resource` is observed on a **dedicated active-view body**
+and only recorded; unrelated routes are never required to contain it. Use
+`--wait-visible` when a hard visibility deadline is needed.
 
 Runs until interrupted (`SIGINT`/`SIGTERM`) or `--duration` seconds elapse. A
 clean stop exits 0; any observed failure exits 1.
@@ -106,8 +129,11 @@ npm run soak:observe -- \
   --visible-timeout 60
 ```
 
-- exits 0 as soon as the resource is rendered on
-  `/roots/<root>?view=active`, printing `OBSERVER VISIBLE <epoch> <resource>`;
+- exits 0 as soon as the resource is rendered on a **2xx, healthy** normal
+  `/roots/<root>?view=active` page, printing
+  `OBSERVER VISIBLE <epoch> <resource>`;
+- fails immediately (non-zero) if that page leaks the private origin, renders a
+  contract failure, or is degraded while normal visibility was expected;
 - exits 1 with `OBSERVER VISIBLE-TIMEOUT` if the budget elapses first. A mutation
   not visible within 60s is a soak failure unless the iteration is inside an
   explicitly injected failure/restart scenario.
@@ -117,10 +143,18 @@ npm run soak:observe -- \
 ```bash
 npm run soak:observe -- --check-html --scenario normal < page.html
 npm run soak:observe -- --check-html --scenario degraded < page.html
+npm run soak:observe -- --check-html --scenario normal --http-status 200 < page.html
+npm run soak:observe -- --check-html --scenario normal --expect-resource mutation-0001.txt < page.html
 ```
 
-Exits 0/1 for the same judgment path used by watch mode. This is what
-[`tests/soak/observer.test.ts`](../tests/soak/observer.test.ts) regresses.
+Exits 0/1 for the same judgment path used by watch mode:
+
+- without `--expect-resource` it applies generic normal/degraded judgment;
+- with `--expect-resource` (normal only) it applies mutation-visibility judgment;
+- with `--http-status CODE` it first asserts the status contract.
+
+This is what [`tests/soak/observer.test.ts`](../tests/soak/observer.test.ts)
+regresses.
 
 ## Expected-window coordination
 
@@ -128,9 +162,10 @@ The IndexCore driver declares the intentional IndexCore-down window through the
 **state-file**:
 
 ```text
-absent or "normal"   -> normal window: pages must render healthy, no degraded state
-"degraded"           -> expected IndexCore-down window: pages must stay HTTP 200,
-                        show the accepted degraded state, and still never leak
+absent or "normal"   -> normal window: 2xx, healthy render, no contract failure
+"degraded"           -> expected IndexCore-down window: exactly HTTP 200,
+                        availability failures accepted, no contract failure,
+                        no private-origin leak
 ```
 
 During the graceful-restart and crash-recovery scenarios the driver writes
@@ -138,8 +173,8 @@ During the graceful-restart and crash-recovery scenarios the driver writes
 is ready again. The observer must then recover **without restarting the Reference
 Web** and later mutations must become visible again.
 
-While degraded, an accepted degraded page is **not** a failure. A degraded page
-during a `normal` window **is**.
+A degraded render during a `normal` window **is** a failure. During the
+`degraded` window it is expected.
 
 ## Options
 
@@ -147,22 +182,35 @@ during a `normal` window **is**.
 | --- | --- | --- | --- |
 | `--web-url` | `INDEXCORE_WEB_URL` | `http://127.0.0.1:3000` | Reference Web origin. |
 | `--root` | — | — | Active root sampled on root/journal routes. |
-| `--expect-resource` | — | — | Rendered resource expected in `?view=active`. |
-| `--expect-path` | — | — | Canonical path expected on `/resolve`. |
+| `--expect-resource` | — | — | Resource expected on the active view (visibility judgment). |
 | `--visible-timeout` | `INDEXCORE_SOAK_VISIBLE_TIMEOUT` | `60` | `--wait-visible` budget (seconds). |
 | `--sample-interval` | `INDEXCORE_SOAK_SAMPLE_INTERVAL` | `5` | Watch sampling interval (seconds). |
 | `--duration` | — | `0` | Watch duration; `0` = until signal. |
 | `--http-timeout` | `INDEXCORE_SOAK_HTTP_TIMEOUT` | `10` | Per-request curl timeout. |
 | `--state-file` | `INDEXCORE_SOAK_STATE_FILE` | — | Expected-window marker. |
 | `--forbidden-hostport` | `INDEXCORE_BASE_URL` host:port, else `127.0.0.1:8080` | repeatable | Private origin that must never appear in HTML. |
+| `--scenario` | — | — | `normal`/`degraded` for `--check-html`. |
+| `--http-status` | — | — | Asserted HTTP status for `--check-html`. |
+
+## Explicitly out of the observer's scope
+
+The observer does **not** claim Q3 resource detail, Q5 `/resolve`, pagination, or
+stale-cursor coverage. Those remain mandatory coverage of the accepted Gate-4
+regression, exercised by:
+
+```bash
+INDEXCORE_SRC=/path/to/index-core npm run e2e:real
+```
 
 ## Deployment note
 
 The observer reads the **rendered Next.js output**. Start the Reference Web
 server-side with its own `INDEXCORE_BASE_URL` pointing at IndexCore; the browser /
-observer never sees that origin. During the soak the IndexCore driver also
-controls the P11 runtime enablement, the Hint endpoint, provider mutation, crash
-timing, and visibility deadlines — none of which the observer knows about.
+observer never sees that origin. Pass `--forbidden-hostport` explicitly (the
+Phase-B driver does) so origin-leak evidence is not environment-dependent.
+During the soak the IndexCore driver also controls the P11 runtime enablement, the
+Hint endpoint, provider mutation, crash timing, and visibility deadlines — none of
+which the observer knows about.
 
 ## Gate-4 regression
 
