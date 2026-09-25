@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 #
-# P12 read-only Reference Web soak observer.
+# P12 read-only Reference Test Web soak observer.
 #
-# The observer is the Reference Web side of the P12 deployment soak. It stays up
+# The observer is the Reference Test Web side of the P12 deployment soak. It stays up
 # while IndexCore runs, restarts, and crashes, and it only ever issues read-only
-# HTTP GETs against the rendered Reference Web routes. It never talks to
+# HTTP GETs against the rendered Reference Test Web routes. It never talks to
 # IndexCore, never touches PostgreSQL, never sends Mutation Hints, and never
 # receives provider or Hint credentials.
 #
@@ -91,7 +91,7 @@ trap cleanup_tmp EXIT
 
 usage() {
   cat <<'USAGE'
-P12 read-only Reference Web soak observer.
+P12 read-only Reference Test Web soak observer.
 
 Usage:
   soak-observer.sh [options]                     # watch mode
@@ -100,7 +100,7 @@ Usage:
       [--expect-resource NAME] < html
 
 Options:
-  --web-url URL             Reference Web origin (env INDEXCORE_WEB_URL)
+  --web-url URL             Reference Test Web origin (env INDEXCORE_WEB_URL)
                             default http://127.0.0.1:3000
   --root ROOT_ID            active root id sampled on /roots/<id>, ?view=active,
                             and /journal?root=<id>
@@ -160,7 +160,7 @@ done
 
 WEB_URL="${WEB_URL%/}"
 
-# Default forbidden private origin: the Reference Web's own server-side
+# Default forbidden private origin: the Reference Test Web's own server-side
 # IndexCore origin. This is a public coordination value, not a credential.
 if [ "${#FORBIDDEN[@]}" -eq 0 ]; then
   if [ -n "${INDEXCORE_BASE_URL:-}" ]; then
@@ -200,11 +200,27 @@ html_has_contract_failure() {
   return 1
 }
 
+# A degraded window is only evidence if the render explicitly shows the
+# accepted availability state: `IndexCore is not fully available`,
+# `IndexCore is unreachable`, or a controlled `not_ready`. A page that quietly
+# keeps rendering a healthy state while the driver declared degraded must fail,
+# otherwise the observer accepts a false-positive window.
+html_shows_degraded_state() {
+  local html="$1"
+  if html_is_degraded "$html"; then
+    return 0
+  fi
+  if printf '%s' "$html" | grep -qF -- "not_ready"; then
+    return 0
+  fi
+  return 1
+}
+
 # status_ok_for_window <code> <window>  -> 0 acceptable, 1 not
 status_ok_for_window() {
   local code="$1" window="$2"
   if [ "$window" = "degraded" ]; then
-    # The intentional IndexCore-down window keeps Reference Web itself at 200.
+    # The intentional IndexCore-down window keeps Reference Test Web itself at 200.
     [ "$code" = "200" ]
   else
     # Normal observations must be 2xx; 3xx redirects are not accepted.
@@ -250,6 +266,10 @@ judge_degraded_html() {
   fi
   if html_has_contract_failure "$html"; then
     JUDGE_REASON="$label shows a contract failure during the IndexCore-down window"
+    return 1
+  fi
+  if ! html_shows_degraded_state "$html"; then
+    JUDGE_REASON="$label did not show the expected degraded/not_ready state during the IndexCore-down window"
     return 1
   fi
   return 0
@@ -348,16 +368,11 @@ run_wait_visible() {
     local code; code="$(fetch "$view_url" "$WAIT_BODY")"
     if status_ok_for_window "$code" normal; then
       local html; html="$(cat "$WAIT_BODY")"
-      if html_has_leak "$html"; then
-        printf 'OBSERVER FAILURE: private origin leaked into %s\n' "$view_url" >&2
-        exit 1
-      fi
-      if html_has_contract_failure "$html"; then
-        printf 'OBSERVER FAILURE: contract failure rendered on %s\n' "$view_url" >&2
-        exit 1
-      fi
-      if html_is_degraded "$html"; then
-        printf 'OBSERVER FAILURE: %s is degraded while waiting for normal visibility\n' "$view_url" >&2
+      # Reuse the exact shared normal-page judgment so a generic notice such as
+      # "IndexCore request failed — not_ready" can never be accepted just
+      # because the expected resource string also appears on the page.
+      if ! judge_normal_html "$html" "$view_url"; then
+        printf 'OBSERVER FAILURE: %s\n' "$JUDGE_REASON" >&2
         exit 1
       fi
       if printf '%s' "$html" | grep -qF -- "$EXPECT_RESOURCE"; then

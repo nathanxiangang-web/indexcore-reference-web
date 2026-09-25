@@ -169,6 +169,27 @@ describe("contract failure detection (BLOCKER 2)", () => {
     expect(result.code).toBe(0);
   });
 
+  it("accepts an unreachable degraded window", () => {
+    const result = checkHtml(UNREACHABLE, [
+      "--scenario",
+      "degraded",
+      "--forbidden-hostport",
+      FORBIDDEN,
+    ]);
+    expect(result.code).toBe(0);
+  });
+
+  it("rejects a healthily-rendered page during the expected degraded window", () => {
+    const result = checkHtml(NORMAL_HOME, [
+      "--scenario",
+      "degraded",
+      "--forbidden-hostport",
+      FORBIDDEN,
+    ]);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("did not show the expected degraded/not_ready state");
+  });
+
   it("rejects a contract failure during the degraded window", () => {
     const result = checkHtml(contractFailure("malformed_response"), [
       "--scenario",

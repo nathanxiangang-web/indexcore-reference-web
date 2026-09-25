@@ -4,14 +4,14 @@
 > (`nathanxiangang-web/index-core` Issue #103, plan
 > `docs/architecture/INCREMENTAL-P12-DEPLOYMENT-SOAK.md`).
 >
-> This runbook covers **only** the Reference Web side of P12: the read-only
+> This runbook covers **only** the Reference Test Web side of P12: the read-only
 > observer and how the IndexCore soak driver coordinates with it.
 
 ## What the observer is
 
 `indexcore-reference-web` is the accepted Gate-4 external consumer. During P12 it
 stays up while IndexCore runs, restarts, and crashes, and a long-running observer
-samples the **rendered** Reference Web routes to confirm that the accepted
+samples the **rendered** Reference Test Web routes to confirm that the accepted
 consumer contract keeps holding.
 
 The observer is implemented by [`scripts/soak-observer.sh`](../scripts/soak-observer.sh)
@@ -44,7 +44,7 @@ no private IndexCore origin rendered to browser HTML
 
 The observer accepts only **public test coordination values**:
 
-- Reference Web URL;
+- Reference Test Web URL;
 - active root id;
 - expected resource name;
 - scenario name (normal / degraded);
@@ -65,8 +65,12 @@ The observer distinguishes:
    `/journal?root=<root>`). It never requires the expected resource; a resource
    name must not be required to appear on home, `/roots`, or Journal.
 2. **Mutation-visibility judgment** — `--wait-visible` (and `--check-html` with
-   `--expect-resource`) requires the resource on a healthy active view. This is
-   the authoritative mutation→visibility check.
+   `--expect-resource`) requires the resource on a healthy active view, reusing
+   the shared normal-page judgment above. This is the authoritative
+   mutation→visibility check.
+3. **Degraded-window judgment** — the declared degraded window must explicitly
+   show an accepted availability state; it is never a "no contract failure" free
+   pass.
 
 ## Modes
 
@@ -105,8 +109,11 @@ Fails (exit non-zero) on:
   notice (`IndexCore request failed`), or a contract failure kind
   (`malformed_response`, `internal_error`, `unexpected_status`,
   `invalid_request`);
-- **degraded window**: a contract failure kind. Accepted availability failures
-  (`unreachable` / `timeout` / controlled `not_ready`) are **not** failures.
+- **degraded window**: a contract failure kind, or a page that does **not**
+  explicitly show the accepted availability state (`IndexCore is not fully
+  available`, `IndexCore is unreachable`, or a controlled `not_ready`). A
+  healthily-rendered page while the driver declared `degraded` is a
+  false-positive window and therefore fails.
 
 In watch mode `--expect-resource` is observed on a **dedicated active-view body**
 and only recorded; unrelated routes are never required to contain it. Use
@@ -129,11 +136,13 @@ npm run soak:observe -- \
   --visible-timeout 60
 ```
 
-- exits 0 as soon as the resource is rendered on a **2xx, healthy** normal
-  `/roots/<root>?view=active` page, printing
-  `OBSERVER VISIBLE <epoch> <resource>`;
-- fails immediately (non-zero) if that page leaks the private origin, renders a
-  contract failure, or is degraded while normal visibility was expected;
+- exits 0 as soon as the resource is rendered on a **2xx** page that passes the
+  **same shared normal-page judgment** used by watch (`judge_normal_html`),
+  printing `OBSERVER VISIBLE <epoch> <resource>`;
+- fails immediately (non-zero) when that shared judgment fails — private-origin
+  leak, degraded/unreachable render, generic production error notice such as
+  `IndexCore request failed — not_ready`, or a contract failure — so a page that
+  merely happens to contain the resource string can never be accepted;
 - exits 1 with `OBSERVER VISIBLE-TIMEOUT` if the budget elapses first. A mutation
   not visible within 60s is a soak failure unless the iteration is inside an
   explicitly injected failure/restart scenario.
@@ -164,23 +173,27 @@ The IndexCore driver declares the intentional IndexCore-down window through the
 ```text
 absent or "normal"   -> normal window: 2xx, healthy render, no contract failure
 "degraded"           -> expected IndexCore-down window: exactly HTTP 200,
-                        availability failures accepted, no contract failure,
-                        no private-origin leak
+                        must explicitly show degraded/not_ready
+                        (`IndexCore is not fully available` /
+                        `IndexCore is unreachable` / controlled `not_ready`),
+                        no contract failure, no private-origin leak
 ```
 
 During the graceful-restart and crash-recovery scenarios the driver writes
 `degraded` before stopping IndexCore and returns it to `normal` after IndexCore
 is ready again. The observer must then recover **without restarting the Reference
-Web** and later mutations must become visible again.
+Test Web** and later mutations must become visible again.
 
 A degraded render during a `normal` window **is** a failure. During the
-`degraded` window it is expected.
+`degraded` window it is expected — and **required**: a page that keeps rendering
+healthy while the driver declared `degraded` is itself a failure, because it
+would otherwise let a broken consumer pass the soak.
 
 ## Options
 
 | Option | Env | Default | Purpose |
 | --- | --- | --- | --- |
-| `--web-url` | `INDEXCORE_WEB_URL` | `http://127.0.0.1:3000` | Reference Web origin. |
+| `--web-url` | `INDEXCORE_WEB_URL` | `http://127.0.0.1:3000` | Reference Test Web origin. |
 | `--root` | — | — | Active root sampled on root/journal routes. |
 | `--expect-resource` | — | — | Resource expected on the active view (visibility judgment). |
 | `--visible-timeout` | `INDEXCORE_SOAK_VISIBLE_TIMEOUT` | `60` | `--wait-visible` budget (seconds). |
@@ -204,7 +217,7 @@ INDEXCORE_SRC=/path/to/index-core npm run e2e:real
 
 ## Deployment note
 
-The observer reads the **rendered Next.js output**. Start the Reference Web
+The observer reads the **rendered Next.js output**. Start the Reference Test Web
 server-side with its own `INDEXCORE_BASE_URL` pointing at IndexCore; the browser /
 observer never sees that origin. Pass `--forbidden-hostport` explicitly (the
 Phase-B driver does) so origin-leak evidence is not environment-dependent.
@@ -229,10 +242,10 @@ count silently.
 
 ## Evidence to capture
 
-The IndexCore P12 result report is authoritative. From the Reference Web side,
+The IndexCore P12 result report is authoritative. From the Reference Test Web side,
 record:
 
-- exact Reference Web commit;
+- exact Reference Test Web commit;
 - observer start/stop and any failure reason;
 - samples per window (normal/degraded);
 - mutation→visibility latencies confirmed via `--wait-visible`;
