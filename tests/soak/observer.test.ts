@@ -142,7 +142,7 @@ describe("mutation visibility judgment (BLOCKER 1)", () => {
     ]);
     expect(result.code).toBe(1);
     expect(result.stderr).toContain(
-      "generic production error notice outside an expected window",
+      "generic Reference Test Web error notice outside an expected window",
     );
   });
 });
