@@ -54,6 +54,12 @@ const ACTIVE_WITH_RESOURCE =
   "<!doctype html><html><body><h2>Active resources (Q6 list_active_resources)</h2>" +
   '<table><tbody><tr><td>mutation-0001.txt</td></tr></tbody></table></body></html>';
 
+const ACTIVE_WITH_RESOURCE_AND_NOT_READY = ACTIVE_WITH_RESOURCE.replace(
+  "</body>",
+  '<div class="alert" role="alert"><strong>IndexCore request failed</strong> — ' +
+    '<span class="mono">not_ready</span>: IndexCore is not ready.</div></body>',
+);
+
 const DEGRADED_UNAVAILABLE =
   "<!doctype html><html><body><h1>Runtime status</h1>" +
   '<div class="alert"><strong>IndexCore is not fully available.</strong><ul>' +
@@ -123,6 +129,21 @@ describe("mutation visibility judgment (BLOCKER 1)", () => {
       "mutation-0001.txt",
     ]);
     expect(result.code).toBe(0);
+  });
+
+  it("fails when not_ready and the expected resource coexist in a normal window", () => {
+    const result = checkHtml(ACTIVE_WITH_RESOURCE_AND_NOT_READY, [
+      "--scenario",
+      "normal",
+      "--forbidden-hostport",
+      FORBIDDEN,
+      "--expect-resource",
+      "mutation-0001.txt",
+    ]);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain(
+      "generic production error notice outside an expected window",
+    );
   });
 });
 
