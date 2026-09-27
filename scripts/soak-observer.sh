@@ -68,7 +68,7 @@ CONTRACT_FAILURE_MARKERS=(
   "invalid_request"
 )
 
-# The generic production error notice wraps not_ready/invalid_request/
+# The generic Reference Test Web error notice wraps not_ready/invalid_request/
 # internal_error/unexpected_status/malformed_response. In a normal window any
 # occurrence is a failure; in the degraded window only a non-contract kind
 # (i.e. not_ready) may appear.
@@ -248,7 +248,7 @@ judge_normal_html() {
     return 1
   fi
   if printf '%s' "$html" | grep -qF -- "$GENERIC_ERROR_MARKER"; then
-    JUDGE_REASON="$label shows the generic production error notice outside an expected window"
+    JUDGE_REASON="$label shows the generic Reference Test Web error notice outside an expected window"
     return 1
   fi
   return 0
