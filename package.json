@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "e2e:real": "bash scripts/e2e-real.sh"
+    "e2e:real": "bash scripts/e2e-real.sh",
+    "soak:observe": "bash scripts/soak-observer.sh"
   },
   "dependencies": {
     "next": "^16.3.6",
